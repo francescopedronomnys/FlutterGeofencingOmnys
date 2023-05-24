@@ -3,13 +3,12 @@
 // found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/services.dart';
-import 'package:geofencing/src/callback_dispatcher.dart';
-import 'package:geofencing/src/location.dart';
-import 'package:geofencing/src/platform_settings.dart';
+import 'package:flutter_geofencing_omnys/src/callback_dispatcher.dart';
 
 const int _kEnterEvent = 1;
 const int _kExitEvent = 2;
@@ -51,46 +50,96 @@ GeofenceEvent intToGeofenceEvent(int e) {
 
 /// A circular region which represents a geofence.
 class GeofenceRegion {
-  /// The ID associated with the geofence.
+  /// The unique identifier of region.
+  final String identifier;
+
+  /// The proximity UUID of region.
   ///
-  /// This ID is used to identify the geofence and is required to delete a
-  /// specific geofence.
-  final String id;
+  /// For iOS, this value can not be null.
+  final String? proximityUUID;
 
-  /// The location of the geofence.
-  final Location location;
-
-  /// The radius around `location` that will be considered part of the geofence.
-  final double radius;
-
-  /// The types of geofence events to listen for.
+  /// The major number of region.
   ///
-  /// Note: `GeofenceEvent.dwell` is not supported on iOS.
-  final List<GeofenceEvent> triggers;
+  /// For both Android and iOS, this value can be null.
+  final int? major;
 
-  /// Android specific settings for a geofence.
-  final AndroidGeofencingSettings androidSettings;
+  /// The minor number of region.
+  ///
+  /// For both Android and iOS, this value can be null.
+  final int? minor;
 
-  GeofenceRegion(
-      this.id, double latitude, double longitude, this.radius, this.triggers,
-      {AndroidGeofencingSettings androidSettings})
-      : location = Location(latitude, longitude),
-        androidSettings = (androidSettings ?? AndroidGeofencingSettings());
-
-  List<dynamic> _toArgs() {
-    final int triggerMask = triggers.fold(
-        0, (int trigger, GeofenceEvent e) => (geofenceEventToInt(e) | trigger));
-    final List<dynamic> args = <dynamic>[
-      id,
-      location.latitude,
-      location.longitude,
-      radius,
-      triggerMask
-    ];
-    if (Platform.isAndroid) {
-      args.addAll(platformSettingsToArgs(androidSettings));
+  /// Constructor for creating [Region] object.
+  ///
+  /// The [proximityUUID] must not be null when [Platform.isIOS]
+  GeofenceRegion({
+    required this.identifier,
+    this.proximityUUID,
+    this.major,
+    this.minor,
+  }) {
+    if (Platform.isIOS) {
+      assert(
+        proximityUUID != null,
+        'Scanning beacon for iOS must provided proximityUUID',
+      );
     }
-    return args;
+  }
+
+  /// Constructor for deserialize json [Map] into [Region] object.
+  GeofenceRegion.fromJson(dynamic json)
+      : this(
+          identifier: json['identifier'],
+          proximityUUID: json['proximityUUID'],
+          major: _parseMajorMinor(json['major']),
+          minor: _parseMajorMinor(json['minor']),
+        );
+
+  /// Return the serializable of this object into [Map].
+  dynamic get toJson {
+    final map = <String, dynamic>{
+      'identifier': identifier,
+    };
+
+    if (proximityUUID != null) {
+      map['proximityUUID'] = proximityUUID;
+    }
+
+    if (major != null) {
+      map['major'] = major;
+    }
+
+    if (minor != null) {
+      map['minor'] = minor;
+    }
+
+    return map;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GeofenceRegion &&
+          runtimeType == other.runtimeType &&
+          identifier == other.identifier;
+
+  @override
+  int get hashCode => identifier.hashCode;
+
+  static int? _parseMajorMinor(dynamic number) {
+    if (number is num) {
+      return number.toInt();
+    }
+
+    if (number is String) {
+      return int.tryParse(number);
+    }
+
+    return null;
+  }
+
+  @override
+  String toString() {
+    return json.encode(toJson);
   }
 }
 
@@ -102,10 +151,11 @@ class GeofencingManager {
 
   /// Initialize the plugin and request relevant permissions from the user.
   static Future<void> initialize() async {
-    final CallbackHandle callback =
+    final CallbackHandle? callback =
         PluginUtilities.getCallbackHandle(callbackDispatcher);
+    assert(callback != null);
     await _channel.invokeMethod('GeofencingPlugin.initializeService',
-        <dynamic>[callback.toRawHandle()]);
+        <dynamic>[callback!.toRawHandle()]);
   }
 
   /// Promote the geofencing service to a foreground service.
@@ -132,19 +182,12 @@ class GeofencingManager {
   /// Note: `GeofenceEvent.dwell` is not supported on iOS. If the
   /// `GeofenceRegion` provided only requests notifications for a
   /// `GeofenceEvent.dwell` trigger on iOS, `UnsupportedError` is thrown.
-  static Future<void> registerGeofence(
-      GeofenceRegion region,
-      void Function(List<String> id, Location location, GeofenceEvent event)
-          callback) async {
-    if (Platform.isIOS &&
-        region.triggers.contains(GeofenceEvent.dwell) &&
-        (region.triggers.length == 1)) {
-      throw UnsupportedError("iOS does not support 'GeofenceEvent.dwell'");
-    }
+  static Future<void> registerGeofence(GeofenceRegion region,
+      void Function(List<String> id, GeofenceEvent event) callback) async {
     final List<dynamic> args = <dynamic>[
-      PluginUtilities.getCallbackHandle(callback).toRawHandle()
+      PluginUtilities.getCallbackHandle(callback)!.toRawHandle()
     ];
-    args.addAll(region._toArgs());
+    args.add(region.toJson);
     await _channel.invokeMethod('GeofencingPlugin.registerGeofence', args);
   }
 
@@ -155,7 +198,7 @@ class GeofencingManager {
 
   /// Stop receiving geofence events for a given [GeofenceRegion].
   static Future<bool> removeGeofence(GeofenceRegion region) async =>
-      (region == null) ? false : await removeGeofenceById(region.id);
+      await removeGeofenceById(region.identifier);
 
   /// Stop receiving geofence events for an identifier associated with a
   /// geofence region.

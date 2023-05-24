@@ -5,7 +5,7 @@
 
 #import <CoreLocation/CoreLocation.h>
 
-@interface GeofencingPlugin : NSObject<FlutterPlugin, CLLocationManagerDelegate>
+@interface FlutterGeofencingOmnysPlugin : NSObject<FlutterPlugin, CLLocationManagerDelegate>
 
 @end
 #endif

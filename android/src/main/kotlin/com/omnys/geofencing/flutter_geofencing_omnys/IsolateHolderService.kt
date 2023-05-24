@@ -1,8 +1,7 @@
 // Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-package io.flutter.plugins.geofencing
+package com.omnys.geofencing.flutter_geofencing_omnys
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -44,7 +43,7 @@ class IsolateHolderService : Service() {
                 NotificationManager.IMPORTANCE_LOW)
         val imageId = getResources().getIdentifier("ic_launcher", "mipmap", getPackageName())
 
-        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Almost home!")
                 .setContentText("Within 1KM of home. Fine location tracking enabled.")
@@ -52,7 +51,7 @@ class IsolateHolderService : Service() {
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build()
 
-        (getSystemService(Context.POWER_SERVICE) as PowerManager).run {
+        (getSystemService(POWER_SERVICE) as PowerManager).run {
             newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKELOCK_TAG).apply {
                 setReferenceCounted(false)
                 acquire()
@@ -63,7 +62,7 @@ class IsolateHolderService : Service() {
 
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int) : Int {
         if (intent.getAction() == ACTION_SHUTDOWN) {
-            (getSystemService(Context.POWER_SERVICE) as PowerManager).run {
+            (getSystemService(POWER_SERVICE) as PowerManager).run {
                 newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKELOCK_TAG).apply {
                     if (isHeld()) {
                         release()

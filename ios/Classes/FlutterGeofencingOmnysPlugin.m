@@ -1,12 +1,14 @@
+
 // Copyright 2018 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file
 
-#import "GeofencingPlugin.h"
+#import "FlutterGeofencingOmnysPlugin.h"
 
 #import <CoreLocation/CoreLocation.h>
+#import "FBUtils.h"
 
-@implementation GeofencingPlugin {
+@implementation FlutterGeofencingOmnysPlugin {
   CLLocationManager *_locationManager;
   FlutterEngine *_headlessRunner;
   FlutterMethodChannel *_callbackChannel;
@@ -22,7 +24,7 @@ static const NSString *kEventType = @"event_type";
 static const int kEnterEvent = 1;
 static const int kExitEvent = 2;
 static const NSString *kCallbackMapping = @"geofence_region_callback_mapping";
-static GeofencingPlugin *instance = nil;
+static FlutterGeofencingOmnysPlugin *instance = nil;
 static FlutterPluginRegistrantCallback registerPlugins = nil;
 static BOOL initialized = NO;
 static BOOL backgroundIsolateRun = NO;
@@ -31,7 +33,7 @@ static BOOL backgroundIsolateRun = NO;
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar {
   @synchronized(self) {
     if (instance == nil) {
-      instance = [[GeofencingPlugin alloc] init:registrar];
+      instance = [[FlutterGeofencingOmnysPlugin alloc] init:registrar];
       [registrar addApplicationDelegate:instance];
     }
   }
@@ -124,14 +126,13 @@ static BOOL backgroundIsolateRun = NO;
 #pragma mark GeofencingPlugin Methods
 
 - (void)sendLocationEvent:(CLRegion *)region eventType:(int)event {
-  NSAssert([region isKindOfClass:[CLCircularRegion class]], @"region must be CLCircularRegion");
-  CLLocationCoordinate2D center = region.center;
+  NSAssert([region isKindOfClass:[CLBeaconRegion class]], @"region must be CLBeaconRegion");
   int64_t handle = [self getCallbackHandleForRegionId:region.identifier];
   if (handle != 0 && _callbackChannel != nil) {
       [_callbackChannel
        invokeMethod:@""
         arguments:@[
-            @(handle), @[ region.identifier ], @[ @(center.latitude), @(center.longitude) ], @(event)
+            @(handle), @[ region.identifier ], @(event)
         ]];
   }
 }
@@ -155,7 +156,7 @@ static BOOL backgroundIsolateRun = NO;
 
   _callbackChannel =
       [FlutterMethodChannel methodChannelWithName:@"plugins.flutter.io/geofencing_plugin_background"
-                                  binaryMessenger:_headlessRunner];
+                                  binaryMessenger:_headlessRunner.binaryMessenger];
   return self;
 }
 
@@ -181,20 +182,11 @@ static BOOL backgroundIsolateRun = NO;
 
 - (void)registerGeofence:(NSArray *)arguments {
   int64_t callbackHandle = [arguments[0] longLongValue];
-  NSString *identifier = arguments[1];
-  double latitude = [arguments[2] doubleValue];
-  double longitude = [arguments[3] doubleValue];
-  double radius = [arguments[4] doubleValue];
-  int64_t triggerMask = [arguments[5] longLongValue];
+  NSDictionary *regionDictionary = arguments[1];
+  CLBeaconRegion *region = [FBUtils regionFromDictionary:regionDictionary];
+    
 
-  CLCircularRegion *region =
-      [[CLCircularRegion alloc] initWithCenter:CLLocationCoordinate2DMake(latitude, longitude)
-                                        radius:radius
-                                    identifier:identifier];
-  region.notifyOnEntry = ((triggerMask & 0x1) != 0);
-  region.notifyOnExit = ((triggerMask & 0x2) != 0);
-  
-  [self setCallbackHandleForRegionId:callbackHandle regionId:identifier];
+  [self setCallbackHandleForRegionId:callbackHandle regionId:region.identifier];
   [self->_locationManager startMonitoringForRegion:region];
 }
 

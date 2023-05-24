@@ -1,20 +1,19 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file.
-
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_geofencing_omnys/flutter_geofencing_omnys.dart';
 
-import 'package:geofencing/geofencing.dart';
-
-void main() => runApp(MyApp());
+void main() {
+  runApp(const MyApp());
+}
 
 class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
   @override
-  _MyAppState createState() => _MyAppState();
+  State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
@@ -24,18 +23,6 @@ class _MyAppState extends State<MyApp> {
   double longitude = -122.078818;
   double radius = 150.0;
   ReceivePort port = ReceivePort();
-  final List<GeofenceEvent> triggers = <GeofenceEvent>[
-    GeofenceEvent.enter,
-    GeofenceEvent.dwell,
-    GeofenceEvent.exit
-  ];
-  final AndroidGeofencingSettings androidSettings = AndroidGeofencingSettings(
-      initialTrigger: <GeofenceEvent>[
-        GeofenceEvent.enter,
-        GeofenceEvent.exit,
-        GeofenceEvent.dwell
-      ],
-      loiteringDelay: 1000 * 60);
 
   @override
   void initState() {
@@ -51,10 +38,10 @@ class _MyAppState extends State<MyApp> {
     initPlatformState();
   }
 
-  static void callback(List<String> ids, Location l, GeofenceEvent e) async {
-    print('Fences: $ids Location $l Event: $e');
-    final SendPort send =
-    IsolateNameServer.lookupPortByName('geofencing_send_port');
+  static void callback(List<String> ids, GeofenceEvent e) async {
+    print('Fences: $ids Event: $e');
+    final SendPort? send =
+        IsolateNameServer.lookupPortByName('geofencing_send_port');
     send?.send(e.toString());
   }
 
@@ -63,17 +50,6 @@ class _MyAppState extends State<MyApp> {
     print('Initializing...');
     await GeofencingManager.initialize();
     print('Initialization done');
-  }
-
-  String numberValidator(String value) {
-    if (value == null) {
-      return null;
-    }
-    final num a = num.tryParse(value);
-    if (a == null) {
-      return '"$value" is not a valid number';
-    }
-    return null;
   }
 
   @override
@@ -90,7 +66,7 @@ class _MyAppState extends State<MyApp> {
                   children: <Widget>[
                     Text('Current state: $geofenceState'),
                     Center(
-                      child: RaisedButton(
+                      child: ElevatedButton(
                         child: const Text('Register'),
                         onPressed: () {
                           if (latitude == null) {
@@ -103,11 +79,15 @@ class _MyAppState extends State<MyApp> {
                             setState(() => radius = 0.0);
                           }
                           GeofencingManager.registerGeofence(
-                              GeofenceRegion(
-                                  'mtv', latitude, longitude, radius, triggers,
-                                  androidSettings: androidSettings),
-                              callback).then((_) {
-                            GeofencingManager.getRegisteredGeofenceIds().then((value) {
+                            GeofenceRegion(
+                              identifier: "BlueUp",
+                              proximityUUID:
+                                  "ACFD065E-C3C0-11E3-9BBE-1A514932AC01",
+                            ),
+                            callback,
+                          ).then((_) {
+                            GeofencingManager.getRegisteredGeofenceIds()
+                                .then((value) {
                               setState(() {
                                 registeredGeofences = value;
                               });
@@ -118,16 +98,18 @@ class _MyAppState extends State<MyApp> {
                     ),
                     Text('Registered Geofences: $registeredGeofences'),
                     Center(
-                      child: RaisedButton(
+                      child: ElevatedButton(
                         child: const Text('Unregister'),
                         onPressed: () =>
-                            GeofencingManager.removeGeofenceById('mtv').then((_) {
-                              GeofencingManager.getRegisteredGeofenceIds().then((value){
-                                setState(() {
-                                  registeredGeofences = value;
-                                });
-                              });
-                            }),
+                            GeofencingManager.removeGeofenceById('mtv')
+                                .then((_) {
+                          GeofencingManager.getRegisteredGeofenceIds()
+                              .then((value) {
+                            setState(() {
+                              registeredGeofences = value;
+                            });
+                          });
+                        }),
                       ),
                     ),
                     TextField(
@@ -136,27 +118,27 @@ class _MyAppState extends State<MyApp> {
                       ),
                       keyboardType: TextInputType.number,
                       controller:
-                      TextEditingController(text: latitude.toString()),
+                          TextEditingController(text: latitude.toString()),
                       onChanged: (String s) {
-                        latitude = double.tryParse(s);
+                        latitude = double.tryParse(s) ?? 0.0;
                       },
                     ),
                     TextField(
                         decoration:
-                        const InputDecoration(hintText: 'Longitude'),
+                            const InputDecoration(hintText: 'Longitude'),
                         keyboardType: TextInputType.number,
                         controller:
-                        TextEditingController(text: longitude.toString()),
+                            TextEditingController(text: longitude.toString()),
                         onChanged: (String s) {
-                          longitude = double.tryParse(s);
+                          longitude = double.tryParse(s) ?? 0.0;
                         }),
                     TextField(
                         decoration: const InputDecoration(hintText: 'Radius'),
                         keyboardType: TextInputType.number,
                         controller:
-                        TextEditingController(text: radius.toString()),
+                            TextEditingController(text: radius.toString()),
                         onChanged: (String s) {
-                          radius = double.tryParse(s);
+                          radius = double.tryParse(s) ?? 0.0;
                         }),
                   ]))),
     );

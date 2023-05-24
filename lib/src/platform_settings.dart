@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'package:geofencing/src/geofencing.dart';
-
 // Internal.
+import 'package:flutter_geofencing_omnys/src/geofencing.dart';
+
 List<dynamic> platformSettingsToArgs(AndroidGeofencingSettings s) =>
     s._toArgs();
 

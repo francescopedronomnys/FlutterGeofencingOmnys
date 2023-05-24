@@ -1,7 +1,7 @@
 #import "AppDelegate.h"
 #import "GeneratedPluginRegistrant.h"
 
-#import <geofencing/GeofencingPlugin.h>
+#import <flutter_geofencing_omnys/FlutterGeofencingOmnysPlugin.h>
 
 void registerPlugins(NSObject<FlutterPluginRegistry>* registry) {
   [GeneratedPluginRegistrant registerWithRegistry:registry];
@@ -12,8 +12,7 @@ void registerPlugins(NSObject<FlutterPluginRegistry>* registry) {
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
   [GeneratedPluginRegistrant registerWithRegistry:self];
-  [GeofencingPlugin setPluginRegistrantCallback:registerPlugins];
-
+  [FlutterGeofencingOmnysPlugin setPluginRegistrantCallback:registerPlugins];
   // Override point for customization after application launch.
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
 }
