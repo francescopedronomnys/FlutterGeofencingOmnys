@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_geofencing_omnys/src/geofencing.dart';
 
+@pragma('vm:entry-point')
 void callbackDispatcher() {
   const MethodChannel _backgroundChannel =
       MethodChannel('plugins.flutter.io/geofencing_plugin_background');
