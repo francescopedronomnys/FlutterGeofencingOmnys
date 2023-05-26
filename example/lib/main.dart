@@ -38,6 +38,7 @@ class _MyAppState extends State<MyApp> {
     initPlatformState();
   }
 
+  @pragma('vm:entry-point')
   static void callback(List<String> ids, GeofenceEvent e) async {
     print('Fences: $ids Event: $e');
     final SendPort? send =
