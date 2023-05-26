@@ -158,7 +158,7 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
             Log.e(TAG, "Geofencing error: no geofence found in case for ${region.uniqueId}");
             return
         }
-        val callbackHandle = geofenceFromCache.get(0) as Long
+        val callbackHandle = geofenceFromCache[0] as Long
 
         val geofenceUpdateList = listOf(callbackHandle, listOf(region.uniqueId), eventType.dartValue)
 

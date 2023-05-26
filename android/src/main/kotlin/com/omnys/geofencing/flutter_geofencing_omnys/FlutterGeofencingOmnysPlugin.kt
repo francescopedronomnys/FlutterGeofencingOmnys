@@ -41,6 +41,7 @@ class FlutterGeofencingOmnysPlugin: FlutterPlugin, MethodCallHandler {
 
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
@@ -54,13 +55,19 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import org.json.JSONArray
+import org.json.JSONObject
 
 class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHandler {
-    private var mContext: Context? = null
-    private var mActivity: Activity? = null
-    private var beaconsClient: BeaconsClient? = null
+    private var activity: Activity? = null
 
     companion object {
+        //Suppressing because this is application context
+        @SuppressLint("StaticFieldLeak")
+        private var applicationContext: Context? = null
+        //Suppressing because this uses application context
+        @SuppressLint("StaticFieldLeak")
+        private var beaconsClient: BeaconsClient? = null
+
         @JvmStatic
         private val TAG = "GeofencingPlugin"
 
@@ -83,28 +90,37 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
         private val sGeofenceCacheLock = Object()
 
         @JvmStatic
-        fun reRegisterAfterReboot(context: Context) {/*
-            TODO is this needed when using alt beacon library??
+        fun applicationOnCreate(context: Context) {
+            initBeaconsClient(context);
+            reRegisterOnAppStartup(context, beaconsClient!!)
+        }
+
+        @JvmStatic
+        private fun initBeaconsClient(applicationContext: Context) {
+            if (this.applicationContext != null) {
+                Log.d(TAG, "BeaconsClient already initialized, ignoring")
+                return;
+            }
+            this.applicationContext = applicationContext
+            beaconsClient = BeaconsClient().also {
+                it.init(applicationContext)
+            }
+        }
+
+        @JvmStatic
+        fun reRegisterOnAppStartup(
+            context: Context, beaconsClient: BeaconsClient,
+        ) {
             synchronized(sGeofenceCacheLock) {
-                var p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
-                var persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
-                if (persistentGeofences == null) {
-                    return
-                }
+                val p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
+                val persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null) ?: return
                 for (id in persistentGeofences) {
-                    val gfJson = p.getString(getPersistentGeofenceKey(id), null)
-                    if (gfJson == null) {
-                        continue
-                    }
-                    val gfArgs = JSONArray(gfJson)
-                    val list = ArrayList<Object>()
-                    for (i in 0 until gfArgs.length()) {
-                        list.add(gfArgs.get(i) as Object)
-                    }
-                    val geoClient = LocationServices.getGeofencingClient(context)
-                    registerGeofence(context, geoClient, list, null, false)
+                    val geofence = getGeofenceFromCache(context, id) ?: continue
+
+                    Log.d(TAG, "Re-registering geofence on app startup: $geofence")
+                    registerGeofence(context, beaconsClient, geofence, null, false)
                 }
-            }*/
+            }
         }
 
         @JvmStatic
@@ -115,14 +131,17 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
             result: Result?,
             cache: Boolean
         ) {
-            val callbackHandle = args!![0] as Long
-            val regionDictionary: Map<String, *> = args[1] as Map<String, *>
+            // Callback handle is on first argument, will be stored on cache and retrieved later
+            //val callbackHandle = args!![0] as Long
+            val regionDictionary: Map<String, *> = args!![1] as Map<String, *>
             val region = GeofenceRegion.fromJson(regionDictionary)
 
+            //TODO update permissions
             if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_DENIED) {
                 val msg = "'registerGeofence' requires the ACCESS_FINE_LOCATION permission."
                 Log.w(TAG, msg)
                 result?.error(msg, null, null)
+                return
             }
             if (cache) {
                 addGeofenceToCache(context, region.identifier, args)
@@ -153,11 +172,22 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
         }
 
         @JvmStatic
-        fun getGeofenceFromCache(context: Context, id: String): JSONArray? {
+        fun getGeofenceFromCache(context: Context, id: String): ArrayList<*>? {
             synchronized(sGeofenceCacheLock) {
                 val p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
-                val geofenceJson = p.getString(getPersistentGeofenceKey(id), null) ?: return null
-                return JSONArray(geofenceJson)
+                val gfJson = p.getString(getPersistentGeofenceKey(id), null) ?: return null
+                val gfArgs = JSONArray(gfJson)
+                val list = ArrayList<Any>()
+                list.add(gfArgs.get(0))
+                //Extract all region fields and put them on a map
+                val regionJson = gfArgs.get(1) as JSONObject
+                val regionMap: MutableMap<String, Any> = mutableMapOf()
+                for (i in 0 until regionJson.names()!!.length()) {
+                    val fieldName = regionJson.names()!!.get(i) as String;
+                    regionMap[fieldName] = regionJson.get(fieldName)
+                }
+                list.add(regionMap)
+                return list
             }
         }
 
@@ -183,6 +213,7 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
                 result.error("NOT_FOUND", null, null)
                 return
             }
+            //TODO this will not work
             val regionDictionary: Map<String, *> = cachedGeofence[1] as Map<String, *>
             val region = GeofenceRegion.fromJson(regionDictionary)
             beaconsClient.removeGeofence(region)
@@ -193,8 +224,8 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
         private fun getRegisteredGeofenceIds(context: Context, result: Result) {
             synchronized(sGeofenceCacheLock) {
                 val list = ArrayList<String>()
-                var p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
-                var persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
+                val p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
+                val persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
                 if (persistentGeofences != null && persistentGeofences.size > 0) {
                     for (id in persistentGeofences) {
                         list.add(id)
@@ -207,11 +238,8 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
         @JvmStatic
         private fun removeGeofenceFromCache(context: Context, id: String) {
             synchronized(sGeofenceCacheLock) {
-                var p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
-                var persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null)
-                if (persistentGeofences == null) {
-                    return
-                }
+                val p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
+                var persistentGeofences = p.getStringSet(PERSISTENT_GEOFENCES_IDS, null) ?: return
                 persistentGeofences = HashSet<String>(persistentGeofences)
                 persistentGeofences.remove(id)
                 p.edit().remove(getPersistentGeofenceKey(id))
@@ -221,38 +249,36 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
 
         @JvmStatic
         private fun getPersistentGeofenceKey(id: String): String {
-            return "persistent_geofence/" + id
+            return "persistent_geofence/$id"
         }
     }
 
+
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        mContext = binding.applicationContext
-        beaconsClient = BeaconsClient().also {
-            it.init(binding.applicationContext)
-        }
+        initBeaconsClient(binding.applicationContext)
         val channel = MethodChannel(binding.binaryMessenger, "plugins.flutter.io/geofencing_plugin")
         channel.setMethodCallHandler(this)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        mContext = null
+        applicationContext = null
         beaconsClient = null
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
-        mActivity = binding.activity
+        activity = binding.activity
     }
 
     override fun onDetachedFromActivity() {
-        mActivity = null
+        activity = null
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
-        mActivity = null
+        activity = null
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
-        mActivity = binding.activity
+        activity = binding.activity
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -260,31 +286,31 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
         when (call.method) {
             "GeofencingPlugin.initializeService" -> {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    mActivity?.requestPermissions(
+                    activity?.requestPermissions(
                         arrayOf(
                             Manifest.permission.ACCESS_FINE_LOCATION,
                             Manifest.permission.ACCESS_BACKGROUND_LOCATION
                         ), 12312
                     )
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    mActivity?.requestPermissions(
+                } else {
+                    activity?.requestPermissions(
                         arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), 12312
                     )
                 }
-                initializeService(mContext!!, args)
+                initializeService(applicationContext!!, args)
                 result.success(true)
             }
 
             "GeofencingPlugin.registerGeofence" -> registerGeofence(
-                mContext!!, beaconsClient!!, args, result, true
+                applicationContext!!, beaconsClient!!, args, result, true
             )
 
             "GeofencingPlugin.removeGeofence" -> removeGeofence(
-                mContext!!, beaconsClient!!, args, result
+                applicationContext!!, beaconsClient!!, args, result
             )
 
             "GeofencingPlugin.getRegisteredGeofenceIds" -> getRegisteredGeofenceIds(
-                mContext!!, result
+                applicationContext!!, result
             )
 
             else -> result.notImplemented()
