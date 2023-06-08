@@ -102,7 +102,7 @@ class _MyAppState extends State<MyApp> {
                       child: ElevatedButton(
                         child: const Text('Unregister'),
                         onPressed: () =>
-                            GeofencingManager.removeGeofenceById('mtv')
+                            GeofencingManager.removeGeofenceById('BlueUp')
                                 .then((_) {
                           GeofencingManager.getRegisteredGeofenceIds()
                               .then((value) {

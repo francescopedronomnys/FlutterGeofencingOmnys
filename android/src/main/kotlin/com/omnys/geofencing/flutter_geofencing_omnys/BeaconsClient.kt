@@ -46,7 +46,17 @@ class BeaconsClient : MonitorNotifier {
     }
 
     override fun didDetermineStateForRegion(state: Int, region: Region) {
-
+        if (state == MonitorNotifier.INSIDE) {
+            GeofencingService.enqueueWork(
+                context,
+                GeofencingService.createIntent(context, region, EventType.ENTER)
+            )
+        } else if (state == MonitorNotifier.OUTSIDE) {
+            GeofencingService.enqueueWork(
+                context,
+                GeofencingService.createIntent(context, region, EventType.EXIT)
+            )
+        }
     }
 
     companion object {

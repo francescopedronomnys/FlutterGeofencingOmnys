@@ -123,6 +123,27 @@ static BOOL backgroundIsolateRun = NO;
                      withError:(NSError *)error {
 }
 
+- (void)locationManager:(CLLocationManager *)manager
+      didDetermineState:(CLRegionState)state forRegion:(CLRegion *)region {
+    int eventType;
+    if(state == CLRegionStateInside) {
+        eventType = kEnterEvent;
+    } else if(state == CLRegionStateOutside) {
+        eventType = kExitEvent;
+    } else {
+        return;
+    }
+    if (initialized) {
+      [self sendLocationEvent:region eventType:eventType];
+    } else {
+      NSDictionary *dict = @{
+        kRegionKey: region,
+        kEventType: @(eventType)
+      };
+      [_eventQueue addObject:dict];
+    }
+}
+
 #pragma mark GeofencingPlugin Methods
 
 - (void)sendLocationEvent:(CLRegion *)region eventType:(int)event {
