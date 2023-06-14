@@ -6,6 +6,7 @@
 #import "FlutterGeofencingOmnysPlugin.h"
 
 #import <CoreLocation/CoreLocation.h>
+#import <CoreLocation/CLLocationManagerDelegate.h>
 #import "FBUtils.h"
 
 @implementation FlutterGeofencingOmnysPlugin {
@@ -17,6 +18,7 @@
   NSUserDefaults *_persistentState;
   NSMutableArray *_eventQueue;
   int64_t _onLocationUpdateHandle;
+    
 }
 
 static const NSString *kRegionKey = @"region";
@@ -28,6 +30,8 @@ static FlutterGeofencingOmnysPlugin *instance = nil;
 static FlutterPluginRegistrantCallback registerPlugins = nil;
 static BOOL initialized = NO;
 static BOOL backgroundIsolateRun = NO;
+static id<CustomLocationManagerDelegate> _customLocationDelegate;
+
 #pragma mark FlutterPlugin Methods
 
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar {
@@ -101,6 +105,7 @@ static BOOL backgroundIsolateRun = NO;
       };
       [_eventQueue addObject:dict];
     }
+    [_customLocationDelegate locationManager:manager didEnterRegion:region];
   }
 }
 
@@ -115,6 +120,7 @@ static BOOL backgroundIsolateRun = NO;
       };
       [_eventQueue addObject:dict];
     }
+    [_customLocationDelegate locationManager:manager didExitRegion:region];
   }
 }
 
@@ -126,6 +132,8 @@ static BOOL backgroundIsolateRun = NO;
 - (void)locationManager:(CLLocationManager *)manager
       didDetermineState:(CLRegionState)state forRegion:(CLRegion *)region {
     int eventType;
+    [_customLocationDelegate locationManager:manager didDetermineState:state forRegion:region];
+
     if(state == CLRegionStateInside) {
         eventType = kEnterEvent;
     } else if(state == CLRegionStateOutside) {
@@ -279,6 +287,10 @@ static BOOL backgroundIsolateRun = NO;
   NSMutableDictionary *mapping = [self getRegionCallbackMapping];
   [mapping removeObjectForKey:identifier];
   [self setRegionCallbackMapping:mapping];
+}
+
++ (void)locationCallback:(id<CustomLocationManagerDelegate>)delegate {
+    _customLocationDelegate = delegate;
 }
 
 @end
