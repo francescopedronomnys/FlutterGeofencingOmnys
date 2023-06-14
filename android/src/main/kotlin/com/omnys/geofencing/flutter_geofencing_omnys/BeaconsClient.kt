@@ -10,6 +10,8 @@ class BeaconsClient : MonitorNotifier {
     private lateinit var context: Context
     private lateinit var beaconManager: BeaconManager
 
+    private var nativeRegionCallback: NativeRegionCallback? = null
+
     fun init(application: Context) {
         context = application
         //BeaconManager.setDebug(true)
@@ -21,6 +23,10 @@ class BeaconsClient : MonitorNotifier {
             beaconManager.beaconParsers.add(BeaconParser().setBeaconLayout("m:2-3=0215,i:4-19,i:20-21,i:22-23,p:24-24"))
             beaconManager.addMonitorNotifier(this)
         }
+    }
+
+    fun setNativeRegionCallback(callback: NativeRegionCallback) {
+        nativeRegionCallback = callback
     }
 
     fun registerGeofence(region: GeofenceRegion) {
@@ -36,6 +42,7 @@ class BeaconsClient : MonitorNotifier {
             context,
             GeofencingService.createIntent(context, region, EventType.ENTER)
         )
+        nativeRegionCallback?.didEnterRegion(region)
     }
 
     override fun didExitRegion(region: Region) {
@@ -43,6 +50,7 @@ class BeaconsClient : MonitorNotifier {
             context,
             GeofencingService.createIntent(context, region, EventType.EXIT)
         )
+        nativeRegionCallback?.didExitRegion(region)
     }
 
     override fun didDetermineStateForRegion(state: Int, region: Region) {
@@ -57,6 +65,8 @@ class BeaconsClient : MonitorNotifier {
                 GeofencingService.createIntent(context, region, EventType.EXIT)
             )
         }
+
+        nativeRegionCallback?.didDetermineStateForRegion(state, region)
     }
 
     companion object {

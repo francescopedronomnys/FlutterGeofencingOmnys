@@ -54,6 +54,7 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import org.altbeacon.beacon.Region
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -64,6 +65,7 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
         //Suppressing because this is application context
         @SuppressLint("StaticFieldLeak")
         private var applicationContext: Context? = null
+
         //Suppressing because this uses application context
         @SuppressLint("StaticFieldLeak")
         private var beaconsClient: BeaconsClient? = null
@@ -90,8 +92,9 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
         private val sGeofenceCacheLock = Object()
 
         @JvmStatic
-        fun applicationOnCreate(context: Context) {
+        fun applicationOnCreate(context: Context, callback: NativeRegionCallback? = null) {
             initBeaconsClient(context);
+            callback?.let { setNativeRegionCallback(it) }
             reRegisterOnAppStartup(context, beaconsClient!!)
         }
 
@@ -105,6 +108,11 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
             beaconsClient = BeaconsClient().also {
                 it.init(applicationContext)
             }
+        }
+
+        @JvmStatic
+        private fun setNativeRegionCallback(callback: NativeRegionCallback) {
+            beaconsClient!!.setNativeRegionCallback(callback)
         }
 
         @JvmStatic
@@ -316,4 +324,12 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
             else -> result.notImplemented()
         }
     }
+}
+
+interface NativeRegionCallback {
+    fun didEnterRegion(region: Region)
+
+    fun didExitRegion(region: Region)
+
+    fun didDetermineStateForRegion(state: Int, region: Region)
 }
