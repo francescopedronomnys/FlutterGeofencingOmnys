@@ -33,6 +33,10 @@ class BeaconsClient : MonitorNotifier {
         beaconManager.startMonitoring(region.frameworkValue())
     }
 
+    fun requestStateForRegion(region: GeofenceRegion) {
+        beaconManager.requestStateForRegion(region.frameworkValue())
+    }
+
     fun removeGeofence(region: GeofenceRegion) {
         beaconManager.stopMonitoring(region.frameworkValue())
     }

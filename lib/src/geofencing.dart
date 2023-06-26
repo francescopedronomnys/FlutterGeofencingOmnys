@@ -191,6 +191,15 @@ class GeofencingManager {
     await _channel.invokeMethod('GeofencingPlugin.registerGeofence', args);
   }
 
+  static Future<void> determineGeofenceState(GeofenceRegion region) async {
+    return determineGeofenceStateById(region.identifier);
+  }
+
+  static Future<void> determineGeofenceStateById(String id) async {
+    await _channel
+        .invokeMethod('GeofencingPlugin.determineGeofenceState', <dynamic>[id]);
+  }
+
   /// get all geofence identifiers
   static Future<List<String>> getRegisteredGeofenceIds() async =>
       List<String>.from(await _channel

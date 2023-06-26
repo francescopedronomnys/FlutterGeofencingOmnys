@@ -160,6 +160,26 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
         }
 
         @JvmStatic
+        private fun determineGeofenceState(
+            context: Context,
+            beaconsClient: BeaconsClient,
+            args: ArrayList<*>?,
+            result: Result
+        ) {
+            val id = args!![0] as String
+            val cachedGeofence = getGeofenceFromCache(context, id)
+            if (cachedGeofence == null) {
+                result.error("NOT_FOUND", null, null)
+                return
+            }
+            //TODO this will not work
+            val regionDictionary: Map<String, *> = cachedGeofence[1] as Map<String, *>
+            val region = GeofenceRegion.fromJson(regionDictionary)
+            beaconsClient.requestStateForRegion(region)
+            result.success(true)
+        }
+
+        @JvmStatic
         private fun addGeofenceToCache(context: Context, id: String, args: ArrayList<*>) {
             synchronized(sGeofenceCacheLock) {
                 val p = context.getSharedPreferences(SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
@@ -226,6 +246,7 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
             val region = GeofenceRegion.fromJson(regionDictionary)
             beaconsClient.removeGeofence(region)
             removeGeofenceFromCache(context, id)
+            result.success(true)
         }
 
         @JvmStatic
@@ -311,6 +332,13 @@ class FlutterGeofencingOmnysPlugin : ActivityAware, FlutterPlugin, MethodCallHan
 
             "GeofencingPlugin.registerGeofence" -> registerGeofence(
                 applicationContext!!, beaconsClient!!, args, result, true
+            )
+
+            "GeofencingPlugin.determineGeofenceState" -> determineGeofenceState(
+                applicationContext!!,
+                beaconsClient!!,
+                args,
+                result
             )
 
             "GeofencingPlugin.removeGeofence" -> removeGeofence(

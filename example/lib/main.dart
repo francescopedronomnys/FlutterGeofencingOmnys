@@ -18,10 +18,9 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String geofenceState = 'N/A';
+  DateTime? lastUpdate;
   List<String> registeredGeofences = [];
-  double latitude = 37.419851;
-  double longitude = -122.078818;
-  double radius = 150.0;
+
   ReceivePort port = ReceivePort();
 
   @override
@@ -33,6 +32,7 @@ class _MyAppState extends State<MyApp> {
       print('Event: $data');
       setState(() {
         geofenceState = data;
+        lastUpdate = DateTime.now();
       });
     });
     initPlatformState();
@@ -57,91 +57,63 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       home: Scaffold(
-          appBar: AppBar(
-            title: const Text('Flutter Geofencing Example'),
+        appBar: AppBar(
+          title: const Text('Flutter Geofencing Example'),
+        ),
+        body: Container(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text(
+                'Current state: $geofenceState - ${lastUpdate?.toIso8601String()}',
+                textAlign: TextAlign.center,
+              ),
+              Center(
+                child: ElevatedButton(
+                  child: const Text('Register'),
+                  onPressed: () {
+                    GeofencingManager.registerGeofence(
+                      GeofenceRegion(
+                        identifier: "BlueUp",
+                        proximityUUID: "ACFD065E-C3C0-11E3-9BBE-1A514932AC01",
+                      ),
+                      callback,
+                    ).then((_) {
+                      GeofencingManager.getRegisteredGeofenceIds()
+                          .then((value) {
+                        setState(() {
+                          registeredGeofences = value;
+                        });
+                      });
+                    });
+                  },
+                ),
+              ),
+              Text('Registered Geofences: $registeredGeofences'),
+              Center(
+                child: ElevatedButton(
+                    child: const Text('Update state'),
+                    onPressed: () =>
+                        GeofencingManager.determineGeofenceStateById("BlueUp")),
+              ),
+              Center(
+                child: ElevatedButton(
+                  child: const Text('Unregister'),
+                  onPressed: () =>
+                      GeofencingManager.removeGeofenceById('BlueUp').then((_) {
+                    GeofencingManager.getRegisteredGeofenceIds().then((value) {
+                      setState(() {
+                        registeredGeofences = value;
+                      });
+                    });
+                  }),
+                ),
+              ),
+            ],
           ),
-          body: Container(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Text('Current state: $geofenceState'),
-                    Center(
-                      child: ElevatedButton(
-                        child: const Text('Register'),
-                        onPressed: () {
-                          if (latitude == null) {
-                            setState(() => latitude = 0.0);
-                          }
-                          if (longitude == null) {
-                            setState(() => longitude = 0.0);
-                          }
-                          if (radius == null) {
-                            setState(() => radius = 0.0);
-                          }
-                          GeofencingManager.registerGeofence(
-                            GeofenceRegion(
-                              identifier: "BlueUp",
-                              proximityUUID:
-                                  "ACFD065E-C3C0-11E3-9BBE-1A514932AC01",
-                            ),
-                            callback,
-                          ).then((_) {
-                            GeofencingManager.getRegisteredGeofenceIds()
-                                .then((value) {
-                              setState(() {
-                                registeredGeofences = value;
-                              });
-                            });
-                          });
-                        },
-                      ),
-                    ),
-                    Text('Registered Geofences: $registeredGeofences'),
-                    Center(
-                      child: ElevatedButton(
-                        child: const Text('Unregister'),
-                        onPressed: () =>
-                            GeofencingManager.removeGeofenceById('BlueUp')
-                                .then((_) {
-                          GeofencingManager.getRegisteredGeofenceIds()
-                              .then((value) {
-                            setState(() {
-                              registeredGeofences = value;
-                            });
-                          });
-                        }),
-                      ),
-                    ),
-                    TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Latitude',
-                      ),
-                      keyboardType: TextInputType.number,
-                      controller:
-                          TextEditingController(text: latitude.toString()),
-                      onChanged: (String s) {
-                        latitude = double.tryParse(s) ?? 0.0;
-                      },
-                    ),
-                    TextField(
-                        decoration:
-                            const InputDecoration(hintText: 'Longitude'),
-                        keyboardType: TextInputType.number,
-                        controller:
-                            TextEditingController(text: longitude.toString()),
-                        onChanged: (String s) {
-                          longitude = double.tryParse(s) ?? 0.0;
-                        }),
-                    TextField(
-                        decoration: const InputDecoration(hintText: 'Radius'),
-                        keyboardType: TextInputType.number,
-                        controller:
-                            TextEditingController(text: radius.toString()),
-                        onChanged: (String s) {
-                          radius = double.tryParse(s) ?? 0.0;
-                        }),
-                  ]))),
+        ),
+      ),
     );
   }
 }
