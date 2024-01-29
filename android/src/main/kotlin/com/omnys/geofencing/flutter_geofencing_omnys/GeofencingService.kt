@@ -9,7 +9,6 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Parcelable
 import android.util.Log
-import androidx.core.app.JobIntentService
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor.DartCallback
 import io.flutter.plugin.common.MethodCall
@@ -20,20 +19,29 @@ import io.flutter.view.FlutterCallbackInformation
 import io.flutter.view.FlutterMain
 import org.altbeacon.beacon.Region
 import java.util.ArrayDeque
-import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
-class GeofencingService : MethodCallHandler, JobIntentService() {
+class GeofencingService : MethodCallHandler {
     private val queue = ArrayDeque<List<Any>>()
-    private lateinit var mBackgroundChannel: MethodChannel
-    private lateinit var mContext: Context
+    private lateinit var backgroundChannel: MethodChannel
+    private lateinit var applicationContext: Context
 
     companion object {
-        @JvmStatic
-        private val TAG = "GeofencingService"
+        private var INSTANCE: GeofencingService? = null
+
+        private fun ensureInstance(context: Context): GeofencingService {
+            synchronized(sServiceStarted) {
+                return INSTANCE ?: let {
+                    GeofencingService().also {
+                        INSTANCE = it
+                        it.onCreate(context)
+                    }
+                }
+            }
+        }
 
         @JvmStatic
-        private val JOB_ID = UUID.randomUUID().mostSignificantBits.toInt()
+        private val TAG = "GeofencingService"
 
         @JvmStatic
         private var sBackgroundFlutterEngine: FlutterEngine? = null
@@ -45,13 +53,8 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
         private lateinit var sPluginRegistrantCallback: PluginRegistrantCallback
 
         @JvmStatic
-        fun enqueueWork(context: Context, work: Intent) {
-            enqueueWork(context, GeofencingService::class.java, JOB_ID, work)
-        }
-
-        @JvmStatic
-        fun setPluginRegistrant(callback: PluginRegistrantCallback) {
-            sPluginRegistrantCallback = callback
+        fun enqueueWork(applicationContext: Context, work: Intent) {
+            ensureInstance(applicationContext).onHandleWork(work)
         }
 
         @JvmStatic
@@ -75,13 +78,12 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
 
     private fun startGeofencingService(context: Context) {
         synchronized(sServiceStarted) {
-            mContext = context
+            applicationContext = context
             if (sBackgroundFlutterEngine == null) {
                 sBackgroundFlutterEngine = FlutterEngine(context)
 
                 val callbackHandle = context.getSharedPreferences(
-                    FlutterGeofencingOmnysPlugin.SHARED_PREFERENCES_KEY,
-                    Context.MODE_PRIVATE
+                    FlutterGeofencingOmnysPlugin.SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE
                 )
                     .getLong(FlutterGeofencingOmnysPlugin.CALLBACK_DISPATCHER_HANDLE_KEY, 0)
                 if (callbackHandle == 0L) {
@@ -98,19 +100,16 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
                 Log.i(TAG, "Starting GeofencingService...")
 
                 val args = DartCallback(
-                    context.assets,
-                    FlutterMain.findAppBundlePath(context)!!,
-                    callbackInfo
+                    context.assets, FlutterMain.findAppBundlePath(context)!!, callbackInfo
                 )
                 sBackgroundFlutterEngine!!.dartExecutor.executeDartCallback(args)
-                IsolateHolderService.setBackgroundFlutterEngine(sBackgroundFlutterEngine)
             }
         }
-        mBackgroundChannel = MethodChannel(
+        backgroundChannel = MethodChannel(
             sBackgroundFlutterEngine!!.dartExecutor.binaryMessenger,
             "plugins.flutter.io/geofencing_plugin_background"
         )
-        mBackgroundChannel.setMethodCallHandler(this)
+        backgroundChannel.setMethodCallHandler(this)
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -118,20 +117,10 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
             "GeofencingService.initialized" -> {
                 synchronized(sServiceStarted) {
                     while (!queue.isEmpty()) {
-                        mBackgroundChannel.invokeMethod("", queue.remove())
+                        backgroundChannel.invokeMethod("", queue.remove())
                     }
                     sServiceStarted.set(true)
                 }
-            }
-
-            "GeofencingService.promoteToForeground" -> {
-                mContext.startForegroundService(Intent(mContext, IsolateHolderService::class.java))
-            }
-
-            "GeofencingService.demoteToBackground" -> {
-                val intent = Intent(mContext, IsolateHolderService::class.java)
-                intent.action = IsolateHolderService.ACTION_SHUTDOWN
-                mContext.startForegroundService(intent)
             }
 
             else -> result.notImplemented()
@@ -139,12 +128,11 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
         result.success(null)
     }
 
-    override fun onCreate() {
-        super.onCreate()
-        startGeofencingService(this)
+    fun onCreate(context: Context) {
+        startGeofencingService(context)
     }
 
-    override fun onHandleWork(intent: Intent) {
+    fun onHandleWork(intent: Intent) {
         val region = parseIntentRegion(intent);
         val eventType = parseIntentEventType(intent)
         if (region == null || eventType == null) {
@@ -160,7 +148,8 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
         }
         val callbackHandle = geofenceFromCache[0] as Long
 
-        val geofenceUpdateList = listOf(callbackHandle, listOf(region.uniqueId), eventType.dartValue)
+        val geofenceUpdateList =
+            listOf(callbackHandle, listOf(region.uniqueId), eventType.dartValue)
 
         synchronized(sServiceStarted) {
             if (!sServiceStarted.get()) {
@@ -168,10 +157,9 @@ class GeofencingService : MethodCallHandler, JobIntentService() {
                 queue.add(geofenceUpdateList)
             } else {
                 // Callback method name is intentionally left blank.
-                Handler(mContext.mainLooper).post {
-                    mBackgroundChannel.invokeMethod(
-                        "",
-                        geofenceUpdateList
+                Handler(applicationContext.mainLooper).post {
+                    backgroundChannel.invokeMethod(
+                        "", geofenceUpdateList
                     )
                 }
             }

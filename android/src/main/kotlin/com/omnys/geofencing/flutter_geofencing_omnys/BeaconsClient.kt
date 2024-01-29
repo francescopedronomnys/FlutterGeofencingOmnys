@@ -43,7 +43,7 @@ class BeaconsClient : MonitorNotifier {
 
     override fun didEnterRegion(region: Region) {
         GeofencingService.enqueueWork(
-            context,
+            context.applicationContext,
             GeofencingService.createIntent(context, region, EventType.ENTER)
         )
         nativeRegionCallback?.didEnterRegion(region)
@@ -51,7 +51,7 @@ class BeaconsClient : MonitorNotifier {
 
     override fun didExitRegion(region: Region) {
         GeofencingService.enqueueWork(
-            context,
+            context.applicationContext,
             GeofencingService.createIntent(context, region, EventType.EXIT)
         )
         nativeRegionCallback?.didExitRegion(region)
@@ -60,12 +60,12 @@ class BeaconsClient : MonitorNotifier {
     override fun didDetermineStateForRegion(state: Int, region: Region) {
         if (state == MonitorNotifier.INSIDE) {
             GeofencingService.enqueueWork(
-                context,
+                context.applicationContext,
                 GeofencingService.createIntent(context, region, EventType.ENTER)
             )
         } else if (state == MonitorNotifier.OUTSIDE) {
             GeofencingService.enqueueWork(
-                context,
+                context.applicationContext,
                 GeofencingService.createIntent(context, region, EventType.EXIT)
             )
         }

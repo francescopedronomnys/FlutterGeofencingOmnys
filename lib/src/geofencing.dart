@@ -146,8 +146,6 @@ class GeofenceRegion {
 class GeofencingManager {
   static const MethodChannel _channel =
       MethodChannel('plugins.flutter.io/geofencing_plugin');
-  static const MethodChannel _background =
-      MethodChannel('plugins.flutter.io/geofencing_plugin_background');
 
   /// Initialize the plugin and request relevant permissions from the user.
   static Future<void> initialize() async {
@@ -157,21 +155,6 @@ class GeofencingManager {
     await _channel.invokeMethod('GeofencingPlugin.initializeService',
         <dynamic>[callback!.toRawHandle()]);
   }
-
-  /// Promote the geofencing service to a foreground service.
-  ///
-  /// Will throw an exception if called anywhere except for a geofencing
-  /// callback.
-  static Future<void> promoteToForeground() async =>
-      await _background.invokeMethod('GeofencingService.promoteToForeground');
-
-  /// Demote the geofencing service from a foreground service to a background
-  /// service.
-  ///
-  /// Will throw an exception if called anywhere except for a geofencing
-  /// callback.
-  static Future<void> demoteToBackground() async =>
-      await _background.invokeMethod('GeofencingService.demoteToBackground');
 
   /// Register for geofence events for a [GeofenceRegion].
   ///
