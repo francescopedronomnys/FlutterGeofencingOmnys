@@ -62,4 +62,5 @@ android {
             }
         }
     }
+    namespace 'com.omnys.geofencing.flutter_geofencing_omnys'
 }
