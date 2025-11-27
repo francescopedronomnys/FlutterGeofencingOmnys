@@ -9,14 +9,15 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Parcelable
 import android.util.Log
+import io.flutter.FlutterInjector
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor.DartCallback
+import io.flutter.embedding.engine.plugins.shim.ShimPluginRegistry
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.plugin.common.PluginRegistry.PluginRegistrantCallback
+import io.flutter.plugin.common.PluginRegistrantCallback
 import io.flutter.view.FlutterCallbackInformation
-import io.flutter.FlutterInjector
 import org.altbeacon.beacon.Region
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
@@ -120,7 +121,8 @@ class GeofencingService : MethodCallHandler {
                 sBackgroundFlutterEngine!!.dartExecutor.executeDartCallback(args)
 
                 // 4. Register plugins for the background engine
-                sPluginRegistrantCallback?.registerWith(sBackgroundFlutterEngine!!)
+                // FIXED: Wrapped in ShimPluginRegistry to satisfy the PluginRegistrantCallback interface
+                sPluginRegistrantCallback?.registerWith(ShimPluginRegistry(sBackgroundFlutterEngine!!))
             }
         }
         backgroundChannel = MethodChannel(
