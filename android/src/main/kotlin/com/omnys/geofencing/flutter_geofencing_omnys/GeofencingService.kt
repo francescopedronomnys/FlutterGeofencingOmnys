@@ -12,11 +12,9 @@ import android.util.Log
 import io.flutter.FlutterInjector
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor.DartCallback
-import io.flutter.embedding.engine.plugins.shim.ShimPluginRegistry
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.plugin.common.PluginRegistrantCallback
 import io.flutter.view.FlutterCallbackInformation
 import org.altbeacon.beacon.Region
 import java.util.ArrayDeque
@@ -26,6 +24,11 @@ class GeofencingService : MethodCallHandler {
     private val queue = ArrayDeque<List<Any>>()
     private lateinit var backgroundChannel: MethodChannel
     private lateinit var applicationContext: Context
+
+    // Modern functional interface for plugin registration
+    fun interface PluginRegistrantCallback {
+        fun registerWith(flutterEngine: FlutterEngine)
+    }
 
     companion object {
         private var INSTANCE: GeofencingService? = null
@@ -112,7 +115,6 @@ class GeofencingService : MethodCallHandler {
                 }
                 Log.i(TAG, "Starting GeofencingService...")
 
-                // 3. Use flutterLoader to find the app bundle path
                 val args = DartCallback(
                     context.assets,
                     flutterLoader.findAppBundlePath(),
@@ -120,9 +122,8 @@ class GeofencingService : MethodCallHandler {
                 )
                 sBackgroundFlutterEngine!!.dartExecutor.executeDartCallback(args)
 
-                // 4. Register plugins for the background engine
-                // FIXED: Wrapped in ShimPluginRegistry to satisfy the PluginRegistrantCallback interface
-                sPluginRegistrantCallback?.registerWith(ShimPluginRegistry(sBackgroundFlutterEngine!!))
+                // FIXED: Pass the engine directly to the callback
+                sPluginRegistrantCallback?.registerWith(sBackgroundFlutterEngine!!)
             }
         }
         backgroundChannel = MethodChannel(
@@ -176,7 +177,6 @@ class GeofencingService : MethodCallHandler {
                 // Queue up geofencing events while background isolate is starting
                 queue.add(geofenceUpdateList)
             } else {
-                // Callback method name is intentionally left blank.
                 Handler(applicationContext.mainLooper).post {
                     backgroundChannel.invokeMethod(
                         "", geofenceUpdateList
