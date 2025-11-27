@@ -16,7 +16,7 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.PluginRegistry.PluginRegistrantCallback
 import io.flutter.view.FlutterCallbackInformation
-import io.flutter.view.FlutterMain
+import io.flutter.FlutterInjector
 import org.altbeacon.beacon.Region
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
@@ -50,7 +50,12 @@ class GeofencingService : MethodCallHandler {
         private val sServiceStarted = AtomicBoolean(false)
 
         @JvmStatic
-        private lateinit var sPluginRegistrantCallback: PluginRegistrantCallback
+        private var sPluginRegistrantCallback: PluginRegistrantCallback? = null
+
+        @JvmStatic
+        fun setPluginRegistrant(callback: PluginRegistrantCallback) {
+            sPluginRegistrantCallback = callback
+        }
 
         @JvmStatic
         fun enqueueWork(applicationContext: Context, work: Intent) {
@@ -80,6 +85,13 @@ class GeofencingService : MethodCallHandler {
         synchronized(sServiceStarted) {
             applicationContext = context
             if (sBackgroundFlutterEngine == null) {
+                val flutterLoader = FlutterInjector.instance().flutterLoader()
+
+                if (!flutterLoader.initialized()) {
+                    flutterLoader.startInitialization(context)
+                }
+                flutterLoader.ensureInitializationComplete(context, null)
+
                 sBackgroundFlutterEngine = FlutterEngine(context)
 
                 val callbackHandle = context.getSharedPreferences(
@@ -99,10 +111,16 @@ class GeofencingService : MethodCallHandler {
                 }
                 Log.i(TAG, "Starting GeofencingService...")
 
+                // 3. Use flutterLoader to find the app bundle path
                 val args = DartCallback(
-                    context.assets, FlutterMain.findAppBundlePath(context)!!, callbackInfo
+                    context.assets,
+                    flutterLoader.findAppBundlePath(),
+                    callbackInfo
                 )
                 sBackgroundFlutterEngine!!.dartExecutor.executeDartCallback(args)
+
+                // 4. Register plugins for the background engine
+                sPluginRegistrantCallback?.registerWith(sBackgroundFlutterEngine!!)
             }
         }
         backgroundChannel = MethodChannel(
